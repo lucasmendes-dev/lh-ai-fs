@@ -2,6 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
+from agents.citation_agent import CitationAgent
+from agents.fact_checker_agent import FactCheckerAgent
+from agents.report_builder import ReportBuilder
+
 app = FastAPI()
 
 app.add_middleware(
@@ -26,5 +30,29 @@ def load_documents() -> dict[str, str]:
 @app.post("/analyze")
 async def analyze():
     documents = load_documents()
-    # TODO: Build your multi-agent pipeline here
-    return {"report": None}
+
+    motion = documents["motion_for_summary_judgment"]
+    police = documents["police_report"]
+    medical = documents["medical_records_excerpt"]
+    witness = documents["witness_statement"]
+
+    citation_agent = CitationAgent()
+    fact_checker_agent = FactCheckerAgent()
+    report_builder = ReportBuilder()
+
+    citation_analysis = citation_agent.run(motion)
+
+    fact_analysis = fact_checker_agent.run(
+        motion=motion,
+        police_report=police,
+        medical_records=medical,
+        witness_statement=witness,
+        citations=citation_analysis.get("citations", []),
+    )
+
+    report = report_builder.build(
+        citation_analysis=citation_analysis,
+        fact_analysis=fact_analysis,
+    )
+
+    return {"report": report}

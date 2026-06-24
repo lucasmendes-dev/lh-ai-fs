@@ -136,3 +136,46 @@ Not lines of code.
 ## Follow-Up Interview
 
 If we move forward, the follow-up interview will focus on defending your implementation and your production readiness plan. Expect to walk through your architecture, explain bottlenecks, reason about AI workflow orchestration and database scalability, discuss infrastructure choices, and describe what you would build first as a founding engineer.
+
+---
+
+## Quick Start - My Implementation
+
+I have implemented Tiers 1 and 2 of the BS Detector legal verification pipeline.
+
+### Highlights & Completed Deliverables
+1. **API Endpoint (`POST /analyze`)**: Fully functional. Integrates seamlessly with the React UI and returns a structured analysis report.
+2. **Multi-Agent Pipeline**:
+   * **`CitationAgent`**: Extracts citations, checks authority support, and validates quotes.
+   * **`FactCheckerAgent`**: Receives structured citation data, cross-checks assertions against supporting documents (police report, medical records, witness statement), and handles uncertainty with `"could not verify"`.
+3. **Structured Data Passing**: The pipeline parses `CitationAgent`'s structured JSON output and passes it directly to `FactCheckerAgent`, enabling targeted fact checking of citation-specific claims.
+4. **Evaluation Harness (`run_evals.py`)**: A standalone suite that measures **Precision**, **Recall**, and **Hallucination Rate** across both perfect and noisy execution modes to demonstrate robustness.
+5. **System Design & Documentation**:
+   * **Production Readiness Plan**: [docs/production-readiness.md](file:///wsl.localhost/Ubuntu-22.04/home/lmendes/dev/lh-ai-fs/docs/production-readiness.md) (Architecture diagram, database RLS policies, Temporal orchestration details).
+   * **Design Reflection**: [docs/reflection.md](file:///wsl.localhost/Ubuntu-22.04/home/lmendes/dev/lh-ai-fs/docs/reflection.md) (Tradeoffs, prompt engineering, agent decomposition).
+
+
+## How to Run the Evaluation Harness
+
+I have implemented an evaluation suite in `backend/run_evals.py` that measures the pipeline's output quality by comparing its findings against a ground truth of known flaws in the case file. It evaluates:
+1. **Precision**: The accuracy of the flagged issues (avoiding false flags).
+2. **Recall**: The percentage of known flaws caught by the pipeline.
+3. **Hallucination Rate**: The percentage of flagged issues that do not match any real flaws.
+
+### Running Locally
+To run the evaluation harness locally, activate your virtual environment in the `backend` folder and run:
+```bash
+python run_evals.py
+```
+
+### Running with Docker
+If you are running the project using Docker, execute:
+```bash
+docker compose exec backend python run_evals.py
+```
+---
+## 👨‍💻 Author
+
+**Lucas Mendes**
+💼 Software Engineer  📧 [lucasmendes.prog@gmail.com](mailto:lucasmendes.prog@gmail.com)
+---
