@@ -139,43 +139,78 @@ If we move forward, the follow-up interview will focus on defending your impleme
 
 ---
 
-## Quick Start - My Implementation
+## Quick Start — My Implementation
 
-I have implemented Tiers 1 and 2 of the BS Detector legal verification pipeline.
+I have implemented Tiers 1, 2, and key Tier 3 features of the BS Detector legal verification pipeline.
 
-### Highlights & Completed Deliverables
-1. **API Endpoint (`POST /analyze`)**: Fully functional. Integrates seamlessly with the React UI and returns a structured analysis report.
-2. **Multi-Agent Pipeline**:
-   * **`CitationAgent`**: Extracts citations, checks authority support, and validates quotes.
-   * **`FactCheckerAgent`**: Receives structured citation data, cross-checks assertions against supporting documents (police report, medical records, witness statement), and handles uncertainty with `"could not verify"`.
-3. **Structured Data Passing**: The pipeline parses `CitationAgent`'s structured JSON output and passes it directly to `FactCheckerAgent`, enabling targeted fact checking of citation-specific claims.
-4. **Evaluation Harness (`run_evals.py`)**: A standalone suite that measures **Precision**, **Recall**, and **Hallucination Rate** across both perfect and noisy execution modes to demonstrate robustness.
-5. **System Design & Documentation**:
-   * **Production Readiness Plan**: [docs/production-readiness.md](file:///wsl.localhost/Ubuntu-22.04/home/lmendes/dev/lh-ai-fs/docs/production-readiness.md) (Architecture diagram, database RLS policies, Temporal orchestration details).
-   * **Design Reflection**: [docs/reflection.md](file:///wsl.localhost/Ubuntu-22.04/home/lmendes/dev/lh-ai-fs/docs/reflection.md) (Tradeoffs, prompt engineering, agent decomposition).
+### Agents (4 total)
 
+| Agent | Role |
+|-------|------|
+| **`CitationAgent`** | Extracts all legal citations, verifies quote accuracy, checks whether cited authority supports the stated proposition. Fields `is_citation_real`, `is_quote_accurate`, and `is_proposition_supported` accept `true`, `false`, or `"could_not_verify"`. |
+| **`FactCheckerAgent`** | Receives structured citation output; cross-references factual claims in the MSJ against the police report, medical records, and witness statement. Status values: `"contradicted"`, `"unsupported"`, `"could_not_verify"`. |
+| **`ReportBuilder`** | Assembles the final report with summary statistics (citation flags, fact contradictions, abstention rate) and a computed risk level (HIGH / MEDIUM / LOW). |
+| **`JudicialMemoAgent`** | Synthesizes a one-paragraph judicial memo from the finalized report — strictly summarizing findings already found, written for a judge. |
+
+### Anti-Hallucination Posture
+
+Both CitationAgent and FactCheckerAgent are explicitly prompted to emit `"could_not_verify"` rather than guess when evidence is insufficient. The eval harness rewards this: honest abstention is **not** counted as a hallucination or a false positive. The `"could_not_verify"` posture is not a weakness — for a legal product, confident invention is far more dangerous than honest uncertainty.
+
+### Structured Data Passing
+
+CitationAgent's typed JSON output is parsed and passed directly to FactCheckerAgent as the `citations` argument, enabling targeted fact-checking of the specific claims embedded in each citation's proposition — not just the raw motion text.
+
+### Confidence Scoring
+
+FactCheckerAgent returns a `0.0–1.0` confidence score for each finding. ReportBuilder aggregates these to compute `avg_fact_confidence` and uses high-confidence finding counts to set the `risk_level`. The UI renders confidence bars per finding.
+
+### Structured UI
+
+The frontend displays the report in organized sections — not raw JSON:
+- **Summary bar**: Risk level badge, total findings, citation vs. fact breakdown, abstention rate
+- **Citation cards**: Color-coded by status (flagged/verified/uncertain), per-field badges (citation real, quote accurate, proposition supported), collapsible explanation
+- **Fact cards**: Status badge (contradicted/unsupported/cannot verify), evidence block, confidence bar
+- **Judicial memo**: Rendered prose synthesized by JudicialMemoAgent
+
+---
 
 ## How to Run the Evaluation Harness
 
-I have implemented an evaluation suite in `backend/run_evals.py` that measures the pipeline's output quality by comparing its findings against a ground truth of known flaws in the case file. It evaluates:
-1. **Precision**: The accuracy of the flagged issues (avoiding false flags).
-2. **Recall**: The percentage of known flaws caught by the pipeline.
-3. **Hallucination Rate**: The percentage of flagged issues that do not match any real flaws.
-
-### Running Locally
-To run the evaluation harness locally, activate your virtual environment in the `backend` folder and run:
 ```bash
+# With Docker:
+docker compose exec backend python run_evals.py
+
+# Locally (activate venv first):
 python run_evals.py
 ```
 
-### Running with Docker
-If you are running the project using Docker, execute:
-```bash
-docker compose exec backend python run_evals.py
-```
+### Metrics
+
+| Metric | Description |
+|--------|-------------|
+| **Precision** | Of all flagged issues, what fraction are real flaws? |
+| **Recall** | Of all known flaws, what fraction did the pipeline catch? |
+| **Hallucination Rate** | Of all definitive flags, what fraction are not real flaws? |
+| **Abstention Rate** | What fraction of items received an honest `"could_not_verify"`? |
+
+### Eval Design Rationale
+
+> **Why keyword-based matching?** Transparency and reproducibility. The keyword sets are readable and deterministic — anyone can inspect exactly what is being measured. Embedding-based matching would be more robust to paraphrasing but would introduce a second model into the eval loop (obscuring whether failures are due to the pipeline or the eval model).
+
+> **Why is `"could_not_verify"` not penalized?** Because it represents the correct posture. For a legal product, a confident wrong answer is more harmful than an honest "I cannot tell." The eval counts honest abstentions separately (Abstention Rate), not as misses or hallucinations.
+
+> **Deduplication**: Each known flaw ID is counted at most once as a true positive, even if the pipeline outputs multiple claims that match the same flaw. This prevents verbose outputs from inflating recall.
+
 ---
+
+## System Design & Documentation
+
+- **Production Readiness Plan**: [docs/production-readiness.md](docs/production-readiness.md) — Architecture (Temporal, PostgreSQL, S3), legal citation database integration (CourtListener, Westlaw), document provenance and evidence span model, Celery vs. Temporal tradeoff reasoning, phased roadmap.
+- **Design Reflection**: [docs/reflection.md](docs/reflection.md) — Agent decomposition, prompt engineering, eval design critique (including its own limitations), key tradeoffs, time spent.
+
+---
+
 ## 👨‍💻 Author
 
 **Lucas Mendes**
-💼 Software Engineer  📧 [lucasmendes.prog@gmail.com](mailto:lucasmendes.prog@gmail.com)
----
+💼 Software Engineer · 📧 [lucasmendes.prog@gmail.com](mailto:lucasmendes.prog@gmail.com)
